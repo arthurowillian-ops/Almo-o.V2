@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Refeição BR3</title>
+
+<link rel="icon" type="image/png" href="https://i.postimg.cc/sfJg4Ykr/br3-imagem.png">
+<link rel="apple-touch-icon" href="https://i.postimg.cc/sfJg4Ykr/br3-imagem.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Refeição">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --primary:#00B7CC; --primary-d:#0093a6;
+  --dark:#1a1c1e; --bg:#f4f7f6; --white:#fff;
+  --green:#92D050; --blue:#9BC2E6; --amber:#f0a92e; --red:#ff4d4d;
+  --ink:#15171c; --mute:#6b7280; --faint:#97a0aa;
+  --line:#ebecf0;
+}
+*{box-sizing:border-box; font-family:'Inter',sans-serif; -webkit-tap-highlight-color:transparent;}
+body{margin:0; background:var(--bg); color:#333; overflow-x:hidden;}
+h3{margin:0; font-size:15px; color:var(--ink); font-weight:700;}
+
+/* ===== SPLASH ===== */
+#scr-splash{
+  position:fixed; inset:0; z-index:9000;
+  display:flex; justify-content:center; align-items:center;
+  background:radial-gradient(circle at 50% 38%, #ffffff 0%, #f6f9f9 55%, #eef3f3 100%);
+}
+#scr-splash.fade-out{animation:splashOut .6s ease forwards;}
+#scr-splash.gone{display:none;}
+.splash-wrap{display:flex; flex-direction:column; align-items:center; text-align:center; padding:20px;}
+.splash-logo{
+  height:130px; width:auto; object-fit:contain;
+  filter:drop-shadow(0 10px 30px rgba(0,0,0,.08));
+  opacity:0; transform:scale(.78);
+  animation:splashLogo 1s cubic-bezier(.2,.8,.2,1) .15s forwards;
+}
+.splash-sub{
+  margin:24px 0 0; font-size:13.5px; color:#8a949c; letter-spacing:.3px;
+  opacity:0; transform:translateY(14px);
+  animation:splashRise .7s ease .7s forwards;
+}
+.splash-divider{
+  margin-top:20px; height:3px; width:0; border-radius:3px;
+  background:linear-gradient(90deg, transparent, var(--primary), transparent);
+  animation:splashLine .9s ease .9s forwards;
+}
+@keyframes splashLogo{0%{opacity:0;transform:scale(.78)}100%{opacity:1;transform:scale(1)}}
+@keyframes splashRise{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes splashLine{0%{width:0;opacity:0}100%{width:180px;opacity:1}}
+@keyframes splashOut{0%{opacity:1}100%{opacity:0;visibility:hidden}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* ===== APP ===== */
+#app{display:none;}
+#app.on{display:block; animation:fadeIn .35s ease;}
+
+header{
+  background:var(--dark); color:#fff; padding:11px 22px;
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+  border-bottom:3px solid var(--primary);
+}
+.hlogo{display:flex; align-items:center; gap:14px;}
+.hlogo .box{background:#fff; padding:5px 10px; border-radius:8px; display:flex; align-items:center;}
+.hlogo img{height:32px; display:block;}
+.hlogo b{font-size:13px; letter-spacing:.4px; font-weight:700;}
+.hright{display:flex; align-items:center; gap:12px;}
+
+#sync{
+  font-size:11px; font-weight:700; padding:6px 12px; border-radius:20px;
+  white-space:nowrap; transition:.25s;
+}
+.s-ok{background:rgba(146,208,80,.16); color:var(--green); border:1px solid rgba(146,208,80,.35);}
+.s-save{background:rgba(240,169,46,.16); color:var(--amber); border:1px solid rgba(240,169,46,.35);}
+.s-err{background:rgba(255,77,77,.16); color:#ff8080; border:1px solid rgba(255,77,77,.35);}
+
+.dropdown{position:relative;}
+.dropbtn{
+  background:none; color:#fff; padding:8px 15px; border:1px solid rgba(255,255,255,.35);
+  border-radius:9px; cursor:pointer; font-weight:700; font-size:12px; transition:.2s;
+}
+.dropbtn:hover{background:rgba(255,255,255,.1);}
+.dropdown-content{
+  display:none; position:absolute; right:0; top:calc(100% + 8px); background:#fff;
+  min-width:190px; box-shadow:0 12px 30px rgba(0,0,0,.16); z-index:100;
+  border-radius:12px; overflow:hidden; border:1px solid var(--line);
+}
+.dropdown-content a{
+  color:#333; padding:12px 15px; display:flex; align-items:center; gap:10px;
+  font-size:13px; cursor:pointer; font-weight:500;
+}
+.dropdown-content a:hover{background:#f6f7f9;}
+.show{display:block; animation:fadeIn .15s ease;}
+
+nav{background:#fff; display:flex; border-bottom:1px solid var(--line); padding:0 12px; overflow-x:auto;}
+.tab-btn{
+  padding:15px 20px; border:none; background:none; cursor:pointer; white-space:nowrap;
+  font-weight:600; color:var(--mute); font-size:13px; border-bottom:3px solid transparent; transition:.2s;
+}
+.tab-btn:hover{color:var(--ink);}
+.tab-btn.active{color:var(--primary); border-bottom-color:var(--primary);}
+
+.container{padding:22px; max-width:1250px; margin:auto;}
+.tab-content{display:none;}
+.tab-content.active{display:block; animation:fadeIn .25s ease;}
+
+.bar{
+  display:flex; justify-content:space-between; align-items:center;
+  gap:14px; flex-wrap:wrap; margin-bottom:14px;
+}
+
+/* filtros / campos */
+.panel{
+  background:#fff; border:1px solid var(--line); border-radius:16px;
+  padding:16px 18px; box-shadow:0 1px 2px rgba(20,22,26,.04); margin-bottom:16px;
+}
+.filters{display:flex; flex-wrap:wrap; gap:13px; align-items:flex-end;}
+.field{display:flex; flex-direction:column; gap:5px;}
+.field label{font-size:10.5px; font-weight:700; color:var(--mute); text-transform:uppercase; letter-spacing:.3px;}
+.field input, .field select{
+  border:1px solid #dfe1e6; border-radius:9px; padding:9px 12px; font-size:13px;
+  background:#fff; color:var(--ink); min-width:130px;
+}
+.field input:focus, .field select:focus{
+  border-color:var(--primary); outline:none; box-shadow:0 0 0 3px rgba(0,183,204,.14);
+}
+
+/* botões */
+.btn{
+  padding:10px 18px; border:none; border-radius:10px; cursor:pointer;
+  font-weight:700; font-size:12.5px; display:inline-flex; align-items:center; gap:7px; transition:.2s;
+}
+.btn:active{transform:scale(.98);}
+.btn-p{background:var(--primary); color:#fff; box-shadow:0 3px 10px rgba(0,183,204,.28);}
+.btn-p:hover{background:var(--primary-d);}
+.btn-g{background:#fff; color:var(--ink); border:1px solid #dfe1e6;}
+.btn-g:hover{background:#f6f7f9;}
+
+/* tabelas tipo planilha */
+.sheet{
+  background:#fff; border:1px solid var(--line); border-radius:16px;
+  overflow:auto; max-height:520px; box-shadow:0 1px 2px rgba(20,22,26,.04);
+}
+.sheet table{width:100%; border-collapse:separate; border-spacing:0;}
+.sheet th{
+  position:sticky; top:0; background:#fafbfc; padding:11px 12px; text-align:left;
+  font-size:10.5px; color:var(--mute); text-transform:uppercase; letter-spacing:.4px;
+  font-weight:700; border-bottom:1px solid var(--line); z-index:10;
+}
+.sheet td{border-bottom:1px solid #f4f5f7; padding:0; font-size:13px;}
+.sheet tbody tr:hover td{background:#fbfcfd;}
+.sheet input{
+  width:100%; border:none; padding:11px 12px; outline:none;
+  background:transparent; font-size:13px; color:var(--ink);
+}
+.sheet input:focus{background:rgba(0,183,204,.07); box-shadow:inset 0 0 0 1.5px var(--primary);}
+.sheet td.ro{padding:11px 12px; color:var(--ink);}
+.rownum{
+  width:44px; text-align:center; color:#c3c8cf; font-size:10.5px;
+  font-variant-numeric:tabular-nums; background:#fafbfc; user-select:none;
+}
+
+/* cards KPI */
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-top:16px;}
+.kpi{
+  background:#fff; border:1px solid var(--line); border-radius:16px; padding:16px 18px;
+  box-shadow:0 1px 2px rgba(20,22,26,.04); position:relative; overflow:hidden;
+}
+.kpi::before{content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--primary);}
+.kpi.k-g::before{background:var(--green);} .kpi.k-b::before{background:var(--blue);}
+.kpi.k-a::before{background:var(--amber);}
+.kpi small{color:var(--faint); font-weight:700; text-transform:uppercase; font-size:9.5px; letter-spacing:.5px;}
+.kpi .v{font-size:23px; font-weight:800; color:var(--ink); margin-top:6px; font-variant-numeric:tabular-nums;}
+.kpi .sub{font-size:11px; color:var(--faint); margin-top:3px;}
+
+/* dashboard */
+.dz-grid{display:grid; grid-template-columns:1fr; gap:16px; margin-top:16px;}
+@media(min-width:900px){.dz-grid.two{grid-template-columns:1fr 1fr;}}
+.dz-card{
+  background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px;
+  box-shadow:0 1px 2px rgba(20,22,26,.04);
+}
+.dz-card h4{
+  margin:0 0 3px; font-size:13.5px; color:var(--ink); font-weight:700;
+  display:flex; align-items:center; gap:8px;
+}
+.dz-card .cap{font-size:11.5px; color:var(--faint); margin:0 0 16px;}
+.dz-x{display:flex; justify-content:space-between; font-size:10.5px; color:#aab0b8; margin-top:9px; padding:0 2px;}
+
+.dz-legend{display:flex; flex-direction:column; gap:11px; flex:1; min-width:150px;}
+.dz-leg-row{display:flex; align-items:center; gap:9px; font-size:12.5px;}
+.dz-leg-dot{width:10px; height:10px; border-radius:3px; flex:none;}
+.dz-leg-lbl{color:#3a4150; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.dz-leg-val{font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums;}
+.dz-leg-pct{color:var(--faint); font-size:11px; min-width:40px; text-align:right;}
+
+.dz-donut2{display:flex; flex-direction:column; align-items:center; gap:16px;}
+.dz-donut2-svg circle[stroke-linecap="round"]{filter:drop-shadow(0 1px 2px rgba(20,22,26,.14));}
+.dz-donut2 .dz-legend{width:100%; max-width:300px;}
+
+.dz-rank{display:flex; flex-direction:column; gap:12px;}
+.dz-rank-row{display:grid; grid-template-columns:150px 1fr 62px; align-items:center; gap:11px;}
+.dz-rank-lbl{font-size:12px; color:#3a4150; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.dz-rank-bar{height:9px; background:#f1f2f5; border-radius:6px; overflow:hidden;}
+.dz-rank-fill{height:100%; border-radius:6px; transition:width .5s cubic-bezier(.2,.7,.3,1);}
+.dz-rank-val{font-size:12.5px; font-weight:800; color:var(--ink); text-align:right; font-variant-numeric:tabular-nums;}
+
+.dz-empty{text-align:center; padding:54px 20px; color:var(--faint); font-size:13px;}
+.dz-empty b{color:#5b626c; display:block; font-size:15px; margin-bottom:5px;}
+.dz-note{font-size:11.5px; color:var(--faint); margin-top:12px;}
+.pill{
+  background:#e0f7fa; color:#00838f; padding:3px 9px; border-radius:20px;
+  font-weight:800; font-size:10px; letter-spacing:.3px;
+}
+
+/* ===== MODAIS ===== */
+.ov{
+  position:fixed; inset:0; background:rgba(20,22,26,.45); z-index:6000;
+  display:none; align-items:center; justify-content:center; padding:20px;
+  backdrop-filter:blur(2px);
+}
+.ov.on{display:flex; animation:fadeIn .18s ease;}
+.mdl{
+  background:#fff; border-radius:18px; width:100%; max-width:560px;
+  max-height:86vh; display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:0 24px 60px rgba(0,0,0,.28); animation:mdlIn .25s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes mdlIn{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+.mdl-h{
+  padding:17px 20px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+.mdl-h h3{font-size:15px;}
+.mdl-h .cap{font-size:11.5px; color:var(--faint); margin-top:3px;}
+.mdl-x{
+  border:none; background:#f4f5f7; width:30px; height:30px; border-radius:9px;
+  cursor:pointer; color:var(--mute); font-size:15px; font-weight:700; flex:none;
+}
+.mdl-x:hover{background:#e9ebef;}
+.mdl-b{padding:16px 20px; overflow:auto;}
+.mdl-f{padding:14px 20px; border-top:1px solid var(--line); background:#fafbfc; display:flex; gap:9px; justify-content:flex-end;}
+
+.pf-search{
+  width:100%; border:1px solid #dfe1e6; border-radius:10px; padding:10px 12px;
+  font-size:13px; margin-bottom:12px; outline:none;
+}
+.pf-search:focus{border-color:var(--primary); box-shadow:0 0 0 3px rgba(0,183,204,.14);}
+.pf-list{display:flex; flex-direction:column; gap:7px;}
+.pf-row{
+  display:flex; align-items:center; gap:12px; padding:10px 12px;
+  border:1px solid var(--line); border-radius:12px; background:#fff;
+}
+.pf-row:hover{background:#fafbfc;}
+.pf-info{flex:1; min-width:0;}
+.pf-nome{font-size:13px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.pf-sub{font-size:11px; color:var(--faint); margin-top:2px;}
+.pf-print{
+  border:1px solid #dfe1e6; background:#fff; border-radius:9px; padding:7px 13px;
+  font-size:12px; font-weight:700; color:var(--ink); cursor:pointer; flex:none;
+}
+.pf-print:hover{background:var(--primary); color:#fff; border-color:var(--primary);}
+
+.sup-num{
+  display:flex; align-items:center; gap:12px; padding:15px;
+  background:#f6f9f9; border:1px solid var(--line); border-radius:14px; margin-bottom:14px;
+}
+.sup-num .n{font-size:18px; font-weight:800; color:var(--ink); letter-spacing:.3px;}
+.sup-num .l{font-size:10.5px; color:var(--faint); font-weight:700; text-transform:uppercase; letter-spacing:.4px;}
+.btn-wa{background:#25D366; color:#fff; width:100%; justify-content:center; padding:13px;}
+.btn-wa:hover{background:#1eb857;}
+
+/* toast */
+#toast{
+  position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(120px);
+  background:var(--dark); color:#fff; padding:13px 22px; border-radius:12px;
+  font-size:13px; font-weight:600; z-index:5000; opacity:0; transition:.35s cubic-bezier(.2,.8,.2,1);
+  box-shadow:0 10px 30px rgba(0,0,0,.25); max-width:88vw;
+}
+#toast.on{transform:translateX(-50%) translateY(0); opacity:1;}
+#toast.err{background:#c0392b;}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="scr-splash">
+  <div class="splash-wrap">
+    <img src="https://i.postimg.cc/sfJg4Ykr/br3-imagem.png" class="splash-logo" alt="Brasil ao Cubo">
+    <p class="splash-sub">Controle de Refeição</p>
+    <div class="splash-divider"></div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="hlogo">
+      <div class="box"><img src="https://i.postimg.cc/sfJg4Ykr/br3-imagem.png" alt="Logo"></div>
+      <b>CONTROLE DE REFEIÇÃO BR3</b>
+    </div>
+    <div class="hright">
+      <div id="sync" class="s-ok">☁️ Sincronizado</div>
+      <div class="dropdown">
+        <button class="dropbtn" id="btnAcoes">AÇÕES ▼</button>
+        <div class="dropdown-content" id="menuAcoes">
+          <a onclick="suporte()">🛠️ Suporte</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <button class="tab-btn active" onclick="openTab(event,'aba-db')">DATABASE</button>
+    <button class="tab-btn" onclick="openTab(event,'aba-diario')">CONTROLE DIÁRIO</button>
+    <button class="tab-btn" onclick="openTab(event,'aba-hist')">HISTÓRICO</button>
+    <button class="tab-btn" onclick="openTab(event,'aba-mensal')">FECHAMENTO</button>
+    <button class="tab-btn" onclick="openTab(event,'aba-dash')">DASHBOARD</button>
+  </nav>
+
+  <div class="container">
+
+    <!-- DATABASE -->
+    <div id="aba-db" class="tab-content active">
+      <div class="bar">
+        <div>
+          <h3>Gestão de Funcionários</h3>
+          <div class="dz-note" style="margin-top:4px;">Cole direto do Excel (Ctrl+V). Linhas são criadas automaticamente.</div>
+        </div>
+        <div style="display:flex; gap:9px;">
+          <button class="btn btn-g" onclick="addRowsDB(50)">+ 50 linhas</button>
+          <button class="btn btn-p" onclick="salvarDB()">💾 Salvar database</button>
+        </div>
+      </div>
+      <div class="sheet">
+        <table id="table-db">
+          <thead><tr>
+            <th class="rownum">#</th>
+            <th style="width:18%">Cód. refeição</th>
+            <th style="width:18%">Cód. real</th>
+            <th>Nome completo</th>
+          </tr></thead>
+          <tbody id="body-db"></tbody>
+        </table>
+      </div>
+      <div class="dz-note" id="db-count">—</div>
+    </div>
+
+    <!-- CONTROLE DIÁRIO -->
+    <div id="aba-diario" class="tab-content">
+      <div class="panel">
+        <div class="filters">
+          <div class="field"><label>Data</label><input type="date" id="data-dia" onchange="verificarData()"></div>
+          <div class="field"><label>Custo colaborador</label><input type="number" id="v-colab" step="0.01" onchange="verificarData()"></div>
+          <div class="field"><label>Custo empresa</label><input type="number" id="v-emp" step="0.01" onchange="verificarData()"></div>
+        </div>
+      </div>
+      <div class="bar">
+        <div>
+          <h3>Lançamento do dia</h3>
+          <div class="dz-note" style="margin-top:4px;">O nome preenche sozinho pelo código, se estiver na database.</div>
+        </div>
+        <div style="display:flex; gap:9px;">
+          <button class="btn btn-g" onclick="addRowsDaily(30)">+ 30 linhas</button>
+          <button class="btn btn-p" onclick="salvarDia()">✅ Processar dia</button>
+        </div>
+      </div>
+      <div class="sheet">
+        <table id="table-daily">
+          <thead><tr>
+            <th class="rownum">#</th>
+            <th style="width:22%">Código</th>
+            <th>Nome do colaborador</th>
+          </tr></thead>
+          <tbody id="body-daily"></tbody>
+        </table>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><small>Total almoços</small><div class="v" id="r-qtd">0</div><div class="sub">no dia selecionado</div></div>
+        <div class="kpi k-b"><small>Desc. colaboradores</small><div class="v" id="r-colab">R$ 0,00</div><div class="sub">a descontar em folha</div></div>
+        <div class="kpi k-a"><small>Custo empresa</small><div class="v" id="r-emp">R$ 0,00</div><div class="sub">subsídio do dia</div></div>
+        <div class="kpi k-g"><small>Custo total do dia</small><div class="v" id="r-tot">R$ 0,00</div><div class="sub">colaborador + empresa</div></div>
+      </div>
+    </div>
+
+    <!-- HISTÓRICO -->
+    <div id="aba-hist" class="tab-content">
+      <div class="panel">
+        <div class="filters">
+          <div class="field"><label>De</label><input type="date" id="h-ini" onchange="carregarHist()"></div>
+          <div class="field"><label>Até</label><input type="date" id="h-fim" onchange="carregarHist()"></div>
+          <div class="field"><label>Buscar</label><input type="text" id="h-busca" placeholder="nome ou código" oninput="carregarHist()"></div>
+          <button class="btn btn-g" onclick="exportarHist()">Exportar XLSX</button>
+        </div>
+      </div>
+      <div class="bar"><h3>Histórico de lançamentos</h3><span class="pill" id="h-count">0 registros</span></div>
+      <div class="sheet">
+        <table id="tabela-hist">
+          <thead><tr><th>Data</th><th>Código</th><th>Nome</th><th>V. colab.</th><th>V. empresa</th></tr></thead>
+          <tbody id="body-hist"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- FECHAMENTO -->
+    <div id="aba-mensal" class="tab-content">
+      <div class="panel">
+        <div class="filters">
+          <div class="field"><label>De</label><input type="date" id="data-inicio-mensal" onchange="gerarMensal()"></div>
+          <div class="field"><label>Até</label><input type="date" id="data-fim-mensal" onchange="gerarMensal()"></div>
+          <button class="btn btn-p" onclick="exportarMensal()">📊 Exportar XLSX</button>
+          <button class="btn btn-g" onclick="abrirFolhaPonto()">🖨️ Folha ponto</button>
+        </div>
+      </div>
+      <div class="bar"><h3>Fechamento por colaborador</h3><span class="pill" id="m-count">0 colaboradores</span></div>
+      <div class="sheet">
+        <table id="tabela-mensal">
+          <thead><tr>
+            <th>Cód. refeição</th><th>Cód. real</th><th>Nome</th>
+            <th>Qtd</th><th>Total desc.</th><th>Total empresa</th>
+          </tr></thead>
+          <tbody id="body-mensal"></tbody>
+        </table>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><small>Refeições no período</small><div class="v" id="m-qtd">0</div></div>
+        <div class="kpi k-b"><small>Total desconto folha</small><div class="v" id="m-colab">R$ 0,00</div></div>
+        <div class="kpi k-a"><small>Total custo empresa</small><div class="v" id="m-emp">R$ 0,00</div></div>
+      </div>
+      <div class="dz-note" id="m-alert"></div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="aba-dash" class="tab-content">
+      <div class="panel">
+        <div class="filters">
+          <div class="field"><label>De</label><input type="date" id="d-ini" onchange="renderDash()"></div>
+          <div class="field"><label>Até</label><input type="date" id="d-fim" onchange="renderDash()"></div>
+          <div class="field"><label>Atalho</label>
+            <select id="d-quick" onchange="quickRange()">
+              <option value="">Personalizado</option>
+              <option value="30">Últimos 30 dias</option>
+              <option value="90">Últimos 90 dias</option>
+              <option value="mes">Mês atual</option>
+              <option value="all">Tudo</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="dash-body"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL SUPORTE -->
+<div class="ov" id="ov-sup" onclick="if(event.target===this)fecharSup()">
+  <div class="mdl" style="max-width:400px;">
+    <div class="mdl-h">
+      <div><h3>Suporte</h3><div class="cap">Dúvidas, erros ou ajustes no sistema</div></div>
+      <button class="mdl-x" onclick="fecharSup()">✕</button>
+    </div>
+    <div class="mdl-b">
+      <div class="sup-num">
+        <div style="font-size:26px">📱</div>
+        <div><div class="l">Telefone</div><div class="n">+55 48 9671-2560</div></div>
+      </div>
+      <button class="btn btn-wa" onclick="abrirWhats()">💬 Iniciar conversa no WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FOLHA PONTO -->
+<div class="ov" id="ov-folha" onclick="if(event.target===this)fecharFolha()">
+  <div class="mdl">
+    <div class="mdl-h">
+      <div><h3>Folha ponto</h3><div class="cap" id="fp-periodo">—</div></div>
+      <button class="mdl-x" onclick="fecharFolha()">✕</button>
+    </div>
+    <div class="mdl-b">
+      <input class="pf-search" id="fp-busca" placeholder="Buscar nome ou código..." oninput="pintarFolhaLista()">
+      <div class="pf-list" id="fp-list"></div>
+    </div>
+    <div class="mdl-f">
+      <button class="btn btn-g" onclick="fecharFolha()">Fechar</button>
+      <button class="btn btn-p" onclick="imprimirFolhas(null)">🖨️ Imprimir todos</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ================== FIREBASE ================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCuI-JSXWNzLCscFowXYZVRHsSN95Z_LEU",
+  authDomain: "sistema-conferencia-24505.firebaseapp.com",
+  projectId: "sistema-conferencia-24505",
+  databaseURL: "https://sistema-conferencia-24505-default-rtdb.firebaseio.com/"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const ROOT = 'refeicoes';               // namespace isolado — não toca em conferencias/estoque/produtos
+
+/* ================== ESTADO ================== */
+// DB   = [{ref, real, name}]
+// HIST = { '2026-07-17': { pC:3.25, pE:16.23, regs:[{code,name}] } }
+let DB = [];
+let HIST = {};
+let dashInit = false;
+
+const PAD = n => String(n).padStart(2,'0');
+const hojeISO = () => { const d=new Date(); return d.getFullYear()+'-'+PAD(d.getMonth()+1)+'-'+PAD(d.getDate()); };
+const brl = v => 'R$ ' + (v||0).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+const dBR = iso => { if(!iso) return ''; const p=iso.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; };
+
+function toast(msg, err){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='on'+(err?' err':'');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.className='',2800);
+}
+function setSync(state){
+  const el=document.getElementById('sync');
+  if(state==='save'){ el.textContent='⏳ Salvando...'; el.className='s-save'; }
+  else if(state==='err'){ el.textContent='⚠️ Sem conexão'; el.className='s-err'; }
+  else { el.textContent='☁️ Sincronizado'; el.className='s-ok'; }
+}
+
+/* ================== SPLASH ================== */
+window.addEventListener('load', () => {
+  boot();                                   // carrega dados enquanto o splash roda
+  setTimeout(() => {
+    const s=document.getElementById('scr-splash');
+    s.classList.add('fade-out');
+    setTimeout(()=>{ s.classList.add('gone'); document.getElementById('app').classList.add('on'); }, 600);
+  }, 2500);
+});
+
+/* ================== BOOT / CARGA ================== */
+async function boot(){
+  // datas padrão
+  const hoje = hojeISO();
+  const d = new Date();
+  const prim = d.getFullYear()+'-'+PAD(d.getMonth()+1)+'-01';
+  document.getElementById('data-dia').value = hoje;
+  document.getElementById('data-inicio-mensal').value = prim;
+  document.getElementById('data-fim-mensal').value = hoje;
+  document.getElementById('h-ini').value = prim;
+  document.getElementById('h-fim').value = hoje;
+  document.getElementById('d-ini').value = prim;
+  document.getElementById('d-fim').value = hoje;
+  document.getElementById('v-colab').value = '3.25';
+  document.getElementById('v-emp').value = '16.23';
+
+  renderRowsDB(200);
+  renderRowsDaily(60);
+  setupPaste();
+
+  setSync('save');
+  try{
+    const [sDb, sH, sP] = await Promise.all([
+      db.ref(ROOT+'/db').once('value'),
+      db.ref(ROOT+'/historico').once('value'),
+      db.ref(ROOT+'/precos').once('value')
+    ]);
+    DB   = sDb.val() || [];
+    HIST = sH.val()  || {};
+    const p = sP.val();
+    if(p){ document.getElementById('v-colab').value=p.pC; document.getElementById('v-emp').value=p.pE; }
+    setSync('ok');
+  }catch(e){
+    console.error(e); setSync('err');
+    toast('Falha ao carregar da nuvem. Verifique a conexão.', true);
+  }
+  pintarDB();
+  verificarData();
+
+  // atualização em tempo real: outro usuário salvou um dia
+  db.ref(ROOT+'/historico').on('value', s => {
+    HIST = s.val() || {};
+    const ativa = document.querySelector('.tab-content.active');
+    if(!ativa) return;
+    if(ativa.id==='aba-hist') carregarHist();
+    if(ativa.id==='aba-mensal') gerarMensal();
+    if(ativa.id==='aba-dash') renderDash();
+  });
+}
+
+/* ================== DATABASE ================== */
+function renderRowsDB(n, from){
+  const tb=document.getElementById('body-db');
+  const start = from || 0;
+  let h='';
+  for(let i=start;i<start+n;i++){
+    h+=`<tr>
+      <td class="rownum">${i+1}</td>
+      <td><input type="text" class="c-ref" oninput="dbTouch()"></td>
+      <td><input type="text" class="c-real" oninput="dbTouch()"></td>
+      <td><input type="text" class="c-name" oninput="dbTouch()"></td>
+    </tr>`;
+  }
+  if(from) tb.insertAdjacentHTML('beforeend', h); else tb.innerHTML=h;
+}
+function addRowsDB(n){ renderRowsDB(n, document.querySelectorAll('#body-db tr').length); }
+
+function ensureRowsDB(total){
+  const cur=document.querySelectorAll('#body-db tr').length;
+  if(total>cur) renderRowsDB(total-cur+10, cur);
+}
+function pintarDB(){
+  ensureRowsDB(DB.length);
+  const rows=document.querySelectorAll('#body-db tr');
+  rows.forEach((r,i)=>{
+    const d=DB[i]||{};
+    r.querySelector('.c-ref').value  = d.ref  || '';
+    r.querySelector('.c-real').value = d.real || '';
+    r.querySelector('.c-name').value = d.name || '';
+  });
+  contarDB();
+}
+function contarDB(){
+  const n=Array.from(document.querySelectorAll('#body-db tr'))
+    .filter(r=>r.querySelector('.c-ref').value.trim()).length;
+  document.getElementById('db-count').textContent = n+' funcionário(s) cadastrado(s)';
+}
+function dbTouch(){ contarDB(); }
+
+async function salvarDB(){
+  const out=[];
+  document.querySelectorAll('#body-db tr').forEach(r=>{
+    const ref=r.querySelector('.c-ref').value.trim();
+    const real=r.querySelector('.c-real').value.trim();
+    const name=r.querySelector('.c-name').value.trim();
+    if(ref) out.push({ref, real, name});
+  });
+  // duplicidade de código de refeição quebra o de-para do fechamento
+  const vistos={}, dup=[];
+  out.forEach(o=>{ if(vistos[o.ref]) dup.push(o.ref); else vistos[o.ref]=1; });
+  if(dup.length){
+    const u=[...new Set(dup)];
+    if(!confirm('Códigos de refeição duplicados: '+u.slice(0,8).join(', ')+(u.length>8?'...':'')+
+      '\n\nO fechamento vai agrupar os lançamentos desses códigos em uma única linha. Salvar mesmo assim?')) return;
+  }
+  setSync('save');
+  try{
+    await db.ref(ROOT+'/db').set(out);
+    DB=out; setSync('ok'); contarDB(); toast('Database salva na nuvem ('+out.length+' registros)');
+  }catch(e){ console.error(e); setSync('err'); toast('Erro ao salvar. Nada foi gravado.', true); }
+}
+
+const deParaNome = () => { const m={}; DB.forEach(d=>{ if(d.ref) m[d.ref]=d; }); return m; };
+
+/* ================== CONTROLE DIÁRIO ================== */
+function renderRowsDaily(n, from){
+  const tb=document.getElementById('body-daily');
+  const start=from||0;
+  let h='';
+  for(let i=start;i<start+n;i++){
+    h+=`<tr>
+      <td class="rownum">${i+1}</td>
+      <td><input type="text" class="c-code" oninput="autoNome(this)"></td>
+      <td><input type="text" class="c-name"></td>
+    </tr>`;
+  }
+  if(from) tb.insertAdjacentHTML('beforeend', h); else tb.innerHTML=h;
+}
+function addRowsDaily(n){ renderRowsDaily(n, document.querySelectorAll('#body-daily tr').length); }
+function ensureRowsDaily(total){
+  const cur=document.querySelectorAll('#body-daily tr').length;
+  if(total>cur) renderRowsDaily(total-cur+10, cur);
+}
+function autoNome(inp){
+  const map=deParaNome();
+  const row=inp.closest('tr');
+  const alvo=row.querySelector('.c-name');
+  const d=map[inp.value.trim()];
+  if(d && d.name) alvo.value=d.name;
+  contarDia();
+}
+function contarDia(){
+  let q=0;
+  document.querySelectorAll('#body-daily .c-code').forEach(i=>{ if(i.value.trim()) q++; });
+  const c=parseFloat(document.getElementById('v-colab').value)||0;
+  const e=parseFloat(document.getElementById('v-emp').value)||0;
+  document.getElementById('r-qtd').textContent=q;
+  document.getElementById('r-colab').textContent=brl(q*c);
+  document.getElementById('r-emp').textContent=brl(q*e);
+  document.getElementById('r-tot').textContent=brl(q*(c+e));
+}
+
+function verificarData(){
+  const data=document.getElementById('data-dia').value;
+  const dia=HIST[data];
+  document.querySelectorAll('#body-daily input').forEach(i=>i.value='');
+  if(dia){
+    // preços salvos daquele dia mandam — o custo pode ter mudado desde então
+    if(dia.pC!=null) document.getElementById('v-colab').value=dia.pC;
+    if(dia.pE!=null) document.getElementById('v-emp').value=dia.pE;
+    const regs=dia.regs||[];
+    ensureRowsDaily(regs.length);
+    const rows=document.querySelectorAll('#body-daily tr');
+    regs.forEach((r,i)=>{
+      if(!rows[i]) return;
+      rows[i].querySelector('.c-code').value=r.code||'';
+      rows[i].querySelector('.c-name').value=r.name||'';
+    });
+  }
+  contarDia();
+}
+
+async function salvarDia(){
+  const data=document.getElementById('data-dia').value;
+  if(!data){ toast('Selecione uma data.', true); return; }
+  const pC=parseFloat(document.getElementById('v-colab').value);
+  const pE=parseFloat(document.getElementById('v-emp').value);
+  if(isNaN(pC)||isNaN(pE)){ toast('Preencha os custos de colaborador e empresa.', true); return; }
+
+  const map=deParaNome();
+  const regs=[], desconhecidos=[], dups={}, repetidos=[];
+  document.querySelectorAll('#body-daily tr').forEach(r=>{
+    const code=r.querySelector('.c-code').value.trim();
+    if(!code) return;
+    const name=r.querySelector('.c-name').value.trim() || (map[code]?map[code].name:'');
+    if(!map[code]) desconhecidos.push(code);
+    if(dups[code]) repetidos.push(code); else dups[code]=1;
+    regs.push({code, name});
+  });
+  if(!regs.length){ toast('Nenhum código lançado.', true); return; }
+
+  if(repetidos.length){
+    const u=[...new Set(repetidos)];
+    if(!confirm('Código lançado mais de uma vez no mesmo dia: '+u.slice(0,8).join(', ')+
+      '\n\nIsso conta como duas refeições para a mesma pessoa. Confirmar?')) return;
+  }
+  if(desconhecidos.length){
+    const u=[...new Set(desconhecidos)];
+    if(!confirm(u.length+' código(s) fora da database: '+u.slice(0,8).join(', ')+(u.length>8?'...':'')+
+      '\n\nEsses vão aparecer no fechamento sem cód. real. Salvar assim?')) return;
+  }
+  if(HIST[data] && !confirm('Já existe lançamento em '+dBR(data)+' com '+(HIST[data].regs||[]).length+
+     ' refeição(ões).\n\nEle será substituído pelo que está na tela. Continuar?')) return;
+
+  setSync('save');
+  try{
+    await db.ref(ROOT+'/historico/'+data).set({pC, pE, regs});
+    await db.ref(ROOT+'/precos').set({pC, pE});
+    HIST[data]={pC, pE, regs};
+    setSync('ok'); toast('Dia '+dBR(data)+' salvo — '+regs.length+' refeição(ões)');
+  }catch(e){ console.error(e); setSync('err'); toast('Erro ao salvar o dia.', true); }
+}
+
+/* ================== FLATTEN ================== */
+function registros(ini, fim){
+  const out=[];
+  Object.keys(HIST).sort().forEach(data=>{
+    if(ini && data<ini) return;
+    if(fim && data>fim) return;
+    const d=HIST[data];
+    (d.regs||[]).forEach(r=>out.push({data, code:r.code, name:r.name, pC:d.pC||0, pE:d.pE||0}));
+  });
+  return out;
+}
+
+/* ================== HISTÓRICO ================== */
+function carregarHist(){
+  const ini=document.getElementById('h-ini').value;
+  const fim=document.getElementById('h-fim').value;
+  const q=document.getElementById('h-busca').value.trim().toLowerCase();
+  let regs=registros(ini,fim);
+  if(q) regs=regs.filter(r=>(r.name||'').toLowerCase().includes(q)||(r.code||'').toLowerCase().includes(q));
+  regs.sort((a,b)=> b.data.localeCompare(a.data) || (a.name||'').localeCompare(b.name||''));
+  document.getElementById('h-count').textContent=regs.length+' registro(s)';
+  document.getElementById('body-hist').innerHTML = regs.length
+    ? regs.map(h=>`<tr>
+        <td class="ro">${dBR(h.data)}</td><td class="ro">${h.code}</td>
+        <td class="ro">${h.name||'<span style="color:#c3c8cf">—</span>'}</td>
+        <td class="ro">${brl(h.pC)}</td><td class="ro">${brl(h.pE)}</td></tr>`).join('')
+    : '<tr><td colspan="5"><div class="dz-empty"><b>Nada por aqui</b>Nenhum lançamento no período.</div></td></tr>';
+}
+
+/* ================== FECHAMENTO ================== */
+let ultimoMensal=[];
+function gerarMensal(){
+  const ini=document.getElementById('data-inicio-mensal').value;
+  const fim=document.getElementById('data-fim-mensal').value;
+  if(!ini||!fim) return;
+  if(ini>fim){ document.getElementById('m-alert').textContent='⚠️ Data inicial maior que a final.'; return; }
+  document.getElementById('m-alert').textContent='';
+
+  const map=deParaNome();
+  const res={};
+  registros(ini,fim).forEach(h=>{
+    if(!res[h.code]) res[h.code]={nome:h.name||(map[h.code]?map[h.code].name:''), real:(map[h.code]?map[h.code].real:'')||'---', q:0, tc:0, te:0};
+    res[h.code].q++; res[h.code].tc+=h.pC; res[h.code].te+=h.pE;
+  });
+  const linhas=Object.entries(res).map(([cod,f])=>({cod,...f})).sort((a,b)=>b.q-a.q);
+  ultimoMensal=linhas;
+
+  document.getElementById('body-mensal').innerHTML = linhas.length
+    ? linhas.map(f=>`<tr>
+        <td class="ro">${f.cod}</td>
+        <td class="ro">${f.real==='---'?'<span style="color:#e0a800">---</span>':f.real}</td>
+        <td class="ro">${f.nome||'<span style="color:#c3c8cf">—</span>'}</td>
+        <td class="ro"><b>${f.q}</b></td><td class="ro">${brl(f.tc)}</td><td class="ro">${brl(f.te)}</td></tr>`).join('')
+    : '<tr><td colspan="6"><div class="dz-empty"><b>Sem dados</b>Nenhuma refeição no período.</div></td></tr>';
+
+  document.getElementById('m-count').textContent=linhas.length+' colaborador(es)';
+  document.getElementById('m-qtd').textContent=linhas.reduce((s,f)=>s+f.q,0);
+  document.getElementById('m-colab').textContent=brl(linhas.reduce((s,f)=>s+f.tc,0));
+  document.getElementById('m-emp').textContent=brl(linhas.reduce((s,f)=>s+f.te,0));
+
+  const semReal=linhas.filter(f=>f.real==='---').length;
+  if(semReal) document.getElementById('m-alert').textContent='⚠️ '+semReal+' código(s) sem cód. real na database — confira antes de mandar para a folha.';
+}
+
+/* ================== EXPORT ================== */
+function baixarXLSX(aoa, nome, sheet){
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheet||'Dados');
+  XLSX.writeFile(wb, nome);
+}
+function exportarMensal(){
+  if(!ultimoMensal.length){ toast('Nada para exportar.', true); return; }
+  const aoa=[['Cód. Refeição','Cód. Real','Nome','Qtd','Total Desconto','Total Empresa']];
+  ultimoMensal.forEach(f=>aoa.push([f.cod, f.real, f.nome, f.q, +f.tc.toFixed(2), +f.te.toFixed(2)]));
+  const t=ultimoMensal.reduce((a,f)=>({q:a.q+f.q, tc:a.tc+f.tc, te:a.te+f.te}),{q:0,tc:0,te:0});
+  aoa.push([], ['TOTAL','','',t.q, +t.tc.toFixed(2), +t.te.toFixed(2)]);
+  baixarXLSX(aoa, 'fechamento_'+document.getElementById('data-inicio-mensal').value+'_a_'+document.getElementById('data-fim-mensal').value+'.xlsx','Fechamento');
+  toast('Fechamento exportado');
+}
+function exportarHist(){
+  const regs=registros(document.getElementById('h-ini').value, document.getElementById('h-fim').value);
+  if(!regs.length){ toast('Nada para exportar.', true); return; }
+  const aoa=[['Data','Código','Nome','V. Colaborador','V. Empresa']];
+  regs.forEach(h=>aoa.push([dBR(h.data), h.code, h.name, +h.pC.toFixed(2), +h.pE.toFixed(2)]));
+  baixarXLSX(aoa,'historico_refeicoes.xlsx','Histórico');
+  toast('Histórico exportado');
+}
+
+/* ================== DASHBOARD ================== */
+function quickRange(){
+  const v=document.getElementById('d-quick').value;
+  if(!v) return;
+  const hoje=hojeISO(); const d=new Date();
+  let ini;
+  if(v==='mes') ini=d.getFullYear()+'-'+PAD(d.getMonth()+1)+'-01';
+  else if(v==='all'){ const ks=Object.keys(HIST).sort(); ini=ks[0]||hoje; }
+  else { const x=new Date(Date.now()-(+v)*86400000); ini=x.getFullYear()+'-'+PAD(x.getMonth()+1)+'-'+PAD(x.getDate()); }
+  document.getElementById('d-ini').value=ini;
+  document.getElementById('d-fim').value=hoje;
+  renderDash();
+}
+
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function renderDash(){
+  const ini=document.getElementById('d-ini').value;
+  const fim=document.getElementById('d-fim').value;
+  const regs=registros(ini,fim);
+  const box=document.getElementById('dash-body');
+
+  if(!regs.length){
+    box.innerHTML='<div class="dz-card"><div class="dz-empty"><b>Sem dados no período</b>Lance refeições no Controle Diário ou amplie o intervalo.</div></div>';
+    return;
+  }
+
+  const totQ=regs.length;
+  const totC=regs.reduce((s,r)=>s+r.pC,0);
+  const totE=regs.reduce((s,r)=>s+r.pE,0);
+
+  // por dia
+  const porDia={};
+  regs.forEach(r=>{ if(!porDia[r.data]) porDia[r.data]={q:0,c:0,e:0}; porDia[r.data].q++; porDia[r.data].c+=r.pC; porDia[r.data].e+=r.pE; });
+  const dias=Object.keys(porDia).sort();
+  const serieQ=dias.map(d=>porDia[d].q);
+  const serieCusto=dias.map(d=>porDia[d].c+porDia[d].e);
+  const mediaDia=totQ/dias.length;
+
+  // por colaborador
+  const porCol={};
+  regs.forEach(r=>{ const k=r.code; if(!porCol[k]) porCol[k]={nome:r.name||k, q:0}; porCol[k].q++; });
+  const rank=Object.values(porCol).sort((a,b)=>b.q-a.q).slice(0,10);
+
+  // por dia da semana
+  const DSN=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const sem=[0,0,0,0,0,0,0];
+  regs.forEach(r=>{ const p=r.data.split('-'); sem[new Date(+p[0],+p[1]-1,+p[2]).getDay()]++; });
+
+  // por mês
+  const porMes={};
+  regs.forEach(r=>{ const m=r.data.slice(0,7); if(!porMes[m]) porMes[m]={q:0,t:0}; porMes[m].q++; porMes[m].t+=r.pC+r.pE; });
+  const meses=Object.keys(porMes).sort();
+
+  box.innerHTML=`
+    <div class="kpis">
+      <div class="kpi"><small>Refeições no período</small><div class="v">${totQ}</div><div class="sub">${dias.length} dia(s) com lançamento</div></div>
+      <div class="kpi k-g"><small>Custo total</small><div class="v">${brl(totC+totE)}</div><div class="sub">colaborador + empresa</div></div>
+      <div class="kpi k-a"><small>Custo empresa</small><div class="v">${brl(totE)}</div><div class="sub">${((totE/(totC+totE))*100).toFixed(1)}% do total</div></div>
+      <div class="kpi k-b"><small>Média por dia</small><div class="v">${mediaDia.toFixed(1)}</div><div class="sub">${brl((totC+totE)/dias.length)} / dia</div></div>
+      <div class="kpi"><small>Colaboradores únicos</small><div class="v">${Object.keys(porCol).length}</div><div class="sub">com ao menos 1 refeição</div></div>
+    </div>
+
+    <div class="dz-grid">
+      <div class="dz-card">
+        <h4>Refeições por dia</h4>
+        <p class="cap">Evolução diária no período — linha com área.</p>
+        ${lineChart(dias, serieQ, '#00B7CC')}
+      </div>
+    </div>
+
+    <div class="dz-grid two">
+      <div class="dz-card">
+        <h4>Custo diário</h4>
+        <p class="cap">Valor total (colaborador + empresa) por dia.</p>
+        ${lineChart(dias, serieCusto, '#f0a92e', true)}
+      </div>
+      <div class="dz-card">
+        <h4>Divisão do custo</h4>
+        <p class="cap">Quanto sai da folha do colaborador e quanto a empresa subsidia.</p>
+        ${donut([
+          {lbl:'Custo empresa', val:totE, cor:'#00B7CC'},
+          {lbl:'Desconto colaborador', val:totC, cor:'#92D050'}
+        ])}
+      </div>
+    </div>
+
+    <div class="dz-grid two">
+      <div class="dz-card">
+        <h4>Top 10 colaboradores</h4>
+        <p class="cap">Quem mais almoçou no período.</p>
+        <div class="dz-rank">
+          ${rank.map(r=>`
+            <div class="dz-rank-row">
+              <div class="dz-rank-lbl" title="${esc(r.nome)}">${esc(r.nome)}</div>
+              <div class="dz-rank-bar"><div class="dz-rank-fill" style="width:${(r.q/rank[0].q*100).toFixed(1)}%; background:linear-gradient(90deg,#00B7CC,#00d3eb);"></div></div>
+              <div class="dz-rank-val">${r.q}</div>
+            </div>`).join('')}
+        </div>
+        <div class="dz-note">Máximo possível no período: ${dias.length} refeição(ões).</div>
+      </div>
+      <div class="dz-card">
+        <h4>Adesão por dia da semana</h4>
+        <p class="cap">Total acumulado de refeições em cada dia.</p>
+        ${bars(DSN, sem, '#9BC2E6')}
+      </div>
+    </div>
+
+    ${meses.length>1?`
+    <div class="dz-grid">
+      <div class="dz-card">
+        <h4>Comparativo mensal</h4>
+        <p class="cap">Refeições e custo total por mês.</p>
+        ${bars(meses.map(m=>m.split('-')[1]+'/'+m.slice(2,4)), meses.map(m=>porMes[m].q), '#00B7CC')}
+        <div class="dz-note">${meses.map(m=>m.split('-')[1]+'/'+m.slice(0,4)+': '+brl(porMes[m].t)).join(' · ')}</div>
+      </div>
+    </div>`:''}
+  `;
+}
+
+/* --- SVG: linha com área --- */
+function lineChart(labels, vals, cor, money){
+  const W=920, H=240, P={t:14,r:14,b:26,l:48};
+  const iw=W-P.l-P.r, ih=H-P.t-P.b;
+  const max=Math.max(...vals,1)*1.12;
+  const n=vals.length;
+  const x=i=> n===1 ? P.l+iw/2 : P.l+(i/(n-1))*iw;
+  const y=v=> P.t+ih-(v/max)*ih;
+  const pts=vals.map((v,i)=>x(i)+','+y(v)).join(' ');
+  const area=`${P.l},${P.t+ih} ${pts} ${x(n-1)},${P.t+ih}`;
+  const id='g'+Math.random().toString(36).slice(2,8);
+
+  let grid='', ax='';
+  for(let g=0; g<=4; g++){
+    const v=max*g/4, yy=y(v);
+    grid+=`<line x1="${P.l}" y1="${yy}" x2="${W-P.r}" y2="${yy}" stroke="#f1f2f5" stroke-width="1"/>`;
+    ax+=`<text x="${P.l-8}" y="${yy+3.5}" font-size="9.5" fill="#aab0b8" text-anchor="end">${money?Math.round(v):v.toFixed(0)}</text>`;
+  }
+  const dots = n<=45 ? vals.map((v,i)=>
+    `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="#fff" stroke="${cor}" stroke-width="2"><title>${dBR(labels[i])}: ${money?brl(v):v}</title></circle>`).join('') : '';
+
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto; display:block;">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${cor}" stop-opacity=".28"/><stop offset="100%" stop-color="${cor}" stop-opacity="0"/>
+    </linearGradient></defs>
+    ${grid}${ax}
+    <polygon points="${area}" fill="url(#${id})"/>
+    <polyline points="${pts}" fill="none" stroke="${cor}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+    ${dots}
+  </svg>
+  <div class="dz-x"><span>${dBR(labels[0])}</span><span>${dBR(labels[labels.length-1])}</span></div>`;
+}
+
+/* --- SVG: barras verticais --- */
+function bars(labels, vals, cor){
+  const W=460, H=230, P={t:14,r:10,b:30,l:38};
+  const iw=W-P.l-P.r, ih=H-P.t-P.b;
+  const max=Math.max(...vals,1)*1.15;
+  const n=vals.length, step=iw/n, bw=Math.min(step*0.58, 46);
+  let grid='', ax='';
+  for(let g=0; g<=4; g++){
+    const v=max*g/4, yy=P.t+ih-(v/max)*ih;
+    grid+=`<line x1="${P.l}" y1="${yy}" x2="${W-P.r}" y2="${yy}" stroke="#f1f2f5"/>`;
+    ax+=`<text x="${P.l-7}" y="${yy+3.5}" font-size="9" fill="#aab0b8" text-anchor="end">${Math.round(v)}</text>`;
+  }
+  const bs=vals.map((v,i)=>{
+    const h=(v/max)*ih, cx=P.l+step*i+step/2;
+    return `<g><rect x="${cx-bw/2}" y="${P.t+ih-h}" width="${bw}" height="${h}" rx="5" fill="${cor}"><title>${labels[i]}: ${v}</title></rect>
+      ${v>0?`<text x="${cx}" y="${P.t+ih-h-5}" font-size="9.5" font-weight="700" fill="#5b626c" text-anchor="middle">${v}</text>`:''}
+      <text x="${cx}" y="${H-9}" font-size="9.5" fill="#8a939c" text-anchor="middle">${esc(labels[i])}</text></g>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto; display:block;">${grid}${ax}${bs}</svg>`;
+}
+
+/* --- SVG: donut segmentado (estilo do sistema de referência) --- */
+function donut(items){
+  const tot=items.reduce((s,i)=>s+i.val,0)||1;
+  const R=64, C=2*Math.PI*R, GAP=2.5;
+  let off=0, segs='';
+  items.forEach(it=>{
+    const frac=it.val/tot, len=Math.max(C*frac-GAP, 0.5);
+    segs+=`<circle cx="85" cy="85" r="${R}" fill="none" stroke="${it.cor}" stroke-width="19"
+      stroke-linecap="round" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}"
+      transform="rotate(-90 85 85)"><title>${it.lbl}: ${brl(it.val)}</title></circle>`;
+    off+=C*frac;
+  });
+  return `<div class="dz-donut2">
+    <div class="dz-donut2-c"><svg class="dz-donut2-svg" viewBox="0 0 170 170" width="170" height="170">
+      <circle cx="85" cy="85" r="${R}" fill="none" stroke="#f1f2f5" stroke-width="19"/>
+      ${segs}
+      <text x="85" y="80" text-anchor="middle" font-size="16" font-weight="800" fill="#15171c">${brl(tot).replace('R$ ','R$')}</text>
+      <text x="85" y="97" text-anchor="middle" font-size="9.5" fill="#97a0aa">CUSTO TOTAL</text>
+    </svg></div>
+    <div class="dz-legend">${items.map(i=>`
+      <div class="dz-leg-row">
+        <div class="dz-leg-dot" style="background:${i.cor}"></div>
+        <div class="dz-leg-lbl">${i.lbl}</div>
+        <div class="dz-leg-val">${brl(i.val)}</div>
+        <div class="dz-leg-pct">${(i.val/tot*100).toFixed(1)}%</div>
+      </div>`).join('')}</div>
+  </div>`;
+}
+
+/* ================== COLAR DO EXCEL ================== */
+function setupPaste(){
+  [['table-db','body-db',3],['table-daily','body-daily',2]].forEach(([tid,bid,cols])=>{
+    document.getElementById(tid).addEventListener('paste', e=>{
+      const act=document.activeElement;
+      if(!act || act.tagName!=='INPUT') return;
+      e.preventDefault();
+      const text=(e.clipboardData||window.clipboardData).getData('text');
+      const linhas=text.split(/\r?\n/).filter(l=>l.trim()!=='');
+      const cell=act.closest('td'), row=cell.closest('tr'), tbody=row.parentNode;
+      const r0=Array.from(tbody.children).indexOf(row);
+      const c0=Array.from(row.children).indexOf(cell)-1;   // -1 = coluna do número da linha
+
+      // cresce a tabela em vez de truncar o que foi colado
+      const precisa=r0+linhas.length;
+      if(bid==='body-db') ensureRowsDB(precisa); else ensureRowsDaily(precisa);
+
+      linhas.forEach((lt,i)=>{
+        const tr=tbody.children[r0+i]; if(!tr) return;
+        lt.split('\t').forEach((ct,j)=>{
+          const c=c0+j; if(c>=cols) return;
+          const td=tr.children[c+1]; if(!td) return;
+          const inp=td.querySelector('input'); if(!inp) return;
+          inp.value=ct.trim();
+          if(inp.classList.contains('c-code')) autoNome(inp);
+        });
+      });
+      if(bid==='body-db') contarDB(); else contarDia();
+      toast(linhas.length+' linha(s) coladas');
+    });
+  });
+}
+
+/* ================== ABAS / AÇÕES ================== */
+function openTab(evt, name){
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(name).classList.add('active');
+  evt.currentTarget.classList.add('active');
+  if(name==='aba-hist') carregarHist();
+  if(name==='aba-mensal') gerarMensal();
+  if(name==='aba-dash'){ if(!dashInit){ dashInit=true; } renderDash(); }
+}
+/* ================== SUPORTE ================== */
+const SUP_TEL_FMT = '+55 48 9671-2560';
+const SUP_TEL_WA  = '554896712560';        // só dígitos, formato wa.me
+
+function suporte(){ document.getElementById('ov-sup').classList.add('on'); }
+function fecharSup(){ document.getElementById('ov-sup').classList.remove('on'); }
+function abrirWhats(){
+  const msg = encodeURIComponent('Olá! Preciso de suporte no Controle de Refeição BR3.');
+  window.open('https://wa.me/'+SUP_TEL_WA+'?text='+msg, '_blank');
+}
+
+/* ================== FOLHA PONTO ================== */
+const LOGO_URL='https://i.postimg.cc/sfJg4Ykr/br3-imagem.png';
+const DIA_SEM=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+
+function isoAdd(iso,n){
+  const d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+n);
+  return d.getFullYear()+'-'+PAD(d.getMonth()+1)+'-'+PAD(d.getDate());
+}
+function diaSemana(iso){ return new Date(iso+'T12:00:00').getDay(); }
+
+/* monta a lista de dias do intervalo para um código */
+function folhaDados(cod, ini, fim){
+  const map=deParaNome();
+  const linhas=[]; let q=0, tc=0, te=0, nome='';
+  for(let d=ini; d<=fim; d=isoAdd(d,1)){
+    const dia=HIST[d];
+    const reg=dia ? (dia.regs||[]).filter(r=>r.code===cod) : [];
+    const ds=diaSemana(d);
+    if(reg.length){
+      const n=reg.length;                       // duplicidade no mesmo dia conta certo
+      const pC=(dia.pC||0)*n, pE=(dia.pE||0)*n;
+      q+=n; tc+=pC; te+=pE;
+      if(!nome && reg[0].name) nome=reg[0].name;
+      linhas.push({d, ds, st:n>1?('REFEIÇÃO ×'+n):'REFEIÇÃO', cls:'ok', pC, pE});
+    } else if(ds===0||ds===6){
+      linhas.push({d, ds, st:'FOLGA', cls:'folga', pC:null, pE:null});
+    } else {
+      linhas.push({d, ds, st:'NÃO UTILIZOU', cls:'nao', pC:0, pE:0});
+    }
+  }
+  if(!nome) nome = map[cod] ? (map[cod].name||'') : '';
+  return {cod, nome, real:(map[cod]&&map[cod].real)||'—', linhas, q, tc, te};
+}
+
+/* pessoas com lançamento no período (mesma base do fechamento) */
+function pessoasFolha(){
+  const ini=document.getElementById('data-inicio-mensal').value;
+  const fim=document.getElementById('data-fim-mensal').value;
+  const map=deParaNome();
+  const res={};
+  registros(ini,fim).forEach(h=>{
+    if(!res[h.code]) res[h.code]={cod:h.code, nome:h.name||(map[h.code]?map[h.code].name:''), real:(map[h.code]&&map[h.code].real)||'—', q:0};
+    res[h.code].q++;
+  });
+  return Object.values(res).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+}
+
+function abrirFolhaPonto(){
+  const ini=document.getElementById('data-inicio-mensal').value;
+  const fim=document.getElementById('data-fim-mensal').value;
+  if(!ini||!fim||ini>fim){ toast('Ajuste o período do fechamento primeiro.', true); return; }
+  document.getElementById('fp-periodo').textContent='Período '+dBR(ini)+' a '+dBR(fim);
+  document.getElementById('fp-busca').value='';
+  pintarFolhaLista();
+  document.getElementById('ov-folha').classList.add('on');
+}
+function fecharFolha(){ document.getElementById('ov-folha').classList.remove('on'); }
+
+function pintarFolhaLista(){
+  const q=document.getElementById('fp-busca').value.trim().toLowerCase();
+  let ps=pessoasFolha();
+  if(q) ps=ps.filter(p=>(p.nome||'').toLowerCase().includes(q)||String(p.cod).toLowerCase().includes(q));
+  document.getElementById('fp-list').innerHTML = ps.length
+    ? ps.map(p=>`<div class="pf-row">
+        <div class="pf-info">
+          <div class="pf-nome">${esc(p.nome||'(sem nome)')}</div>
+          <div class="pf-sub">Cód. ${esc(p.cod)} · cód. real ${esc(p.real)} · ${p.q} refeição(ões)</div>
+        </div>
+        <button class="pf-print" onclick="imprimirFolhas('${esc(p.cod)}')">🖨️ Imprimir</button>
+      </div>`).join('')
+    : '<div class="dz-empty"><b>Nenhum colaborador</b>Sem lançamentos no período selecionado.</div>';
+}
+
+/* cod = null -> todos */
+function imprimirFolhas(cod){
+  const ini=document.getElementById('data-inicio-mensal').value;
+  const fim=document.getElementById('data-fim-mensal').value;
+  const alvos = cod ? [{cod}] : pessoasFolha();
+  if(!alvos.length){ toast('Nada para imprimir.', true); return; }
+
+  const paginas = alvos.map(p=>folhaHTML(folhaDados(p.cod, ini, fim), ini, fim)).join('');
+  const w = window.open('', '_blank');
+  if(!w){ toast('Libere pop-ups para gerar o PDF.', true); return; }
+  w.document.write(docFolha(paginas, cod, ini, fim));
+  w.document.close();
+}
+
+function docFolha(paginas, cod, ini, fim){
+  const titulo = 'Folha Ponto Refeicao '+(cod?cod:'TODOS')+' '+ini+'_'+fim;
+  return `<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><title>${titulo}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+@page{size:A4 portrait; margin:10mm;}
+*{box-sizing:border-box; font-family:'Inter',Arial,sans-serif;}
+body{margin:0; background:#eef0f2; color:#15171c; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+.folha{
+  background:#fff; width:190mm; min-height:277mm; margin:14px auto; padding:14px 16px;
+  border-radius:14px; display:flex; flex-direction:column;
+}
+.fh-top{
+  background:#f3f5f6; border-radius:16px; padding:14px 18px; display:flex;
+  align-items:center; justify-content:space-between; gap:16px; margin-bottom:14px;
+}
+.fh-top img{height:52px;}
+.fh-tt{text-align:right;}
+.fh-tt b{display:block; font-size:14px; font-weight:800;}
+.fh-tt span{font-size:11px; color:#6b7280;}
+.fh-id{display:flex; gap:10px; margin-bottom:12px;}
+.fh-id div{flex:1; border:1px solid #e6e8ec; border-radius:12px; padding:9px 12px;}
+.fh-id span{display:block; font-size:8.5px; font-weight:700; color:#97a0aa; text-transform:uppercase; letter-spacing:.5px;}
+.fh-id b{font-size:12.5px; font-weight:700;}
+.fh-cards{display:flex; gap:10px; margin-bottom:14px;}
+.fh-card{
+  flex:1; border:1px solid #e6e8ec; border-radius:14px; padding:12px 14px;
+  position:relative; overflow:hidden;
+}
+.fh-card::before{content:''; position:absolute; left:0; top:0; bottom:0; width:3px;}
+.fh-card.c1::before{background:#9BC2E6;} .fh-card.c2::before{background:#f0a92e;}
+.fh-card.c3::before{background:#00B7CC;}
+.fh-card span{display:block; font-size:8.5px; font-weight:700; color:#97a0aa; text-transform:uppercase; letter-spacing:.5px;}
+.fh-card b{display:block; font-size:19px; font-weight:800; margin-top:4px;}
+.fh-card small{font-size:10px; color:#97a0aa;}
+h2.fh-h{font-size:12.5px; margin:0 0 8px; font-weight:800;}
+table{width:100%; border-collapse:collapse;}
+th{
+  background:#fafbfc; padding:7px 9px; text-align:left; font-size:8.5px; color:#6b7280;
+  text-transform:uppercase; letter-spacing:.4px; font-weight:700; border-bottom:1px solid #e6e8ec;
+}
+td{padding:5.5px 9px; font-size:10.5px; border-bottom:1px solid #f2f3f5;}
+tr:nth-child(even) td{background:#fcfcfd;}
+.tag{display:inline-block; padding:2px 8px; border-radius:20px; font-size:8.5px; font-weight:800; letter-spacing:.3px;}
+.ok{background:#e6f7ea; color:#2e7d4f;}
+.folga{background:#eef1f4; color:#8a939c;}
+.nao{background:#fdecec; color:#c0392b;}
+.num{font-variant-numeric:tabular-nums;}
+.dim{color:#c3c8cf;}
+tfoot td{font-weight:800; font-size:11px; background:#f7f8fa; border-top:1.5px solid #e6e8ec;}
+.fh-sign{margin-top:auto; padding-top:26px; display:flex; gap:34px; align-items:flex-end;}
+.fh-sign div{flex:1;}
+.fh-line{border-top:1px solid #15171c; padding-top:5px; font-size:10px; color:#6b7280;}
+.fh-foot{margin-top:12px; font-size:8.5px; color:#aab0b8; text-align:center;}
+.folha+.folha{page-break-before:always;}
+@media print{ body{background:#fff;} .folha{margin:0; border-radius:0; width:auto; min-height:auto;} }
+</style></head><body onload="setTimeout(function(){window.print();},450)">${paginas}</body></html>`;
+}
+
+function folhaHTML(f, ini, fim){
+  const uteis = f.linhas.filter(l=>l.cls!=='folga').length;
+  const faltas = f.linhas.filter(l=>l.cls==='nao').length;
+  return `<div class="folha">
+  <div class="fh-top">
+    <img src="${LOGO_URL}" alt="Brasil ao Cubo">
+    <div class="fh-tt">
+      <b>FOLHA PONTO — CONTROLE DE REFEIÇÃO</b>
+      <span>Período de ${dBR(ini)} a ${dBR(fim)}</span>
+    </div>
+  </div>
+
+  <div class="fh-id">
+    <div style="flex:2"><span>Colaborador</span><b>${esc(f.nome||'(sem nome cadastrado)')}</b></div>
+    <div><span>Cód. refeição</span><b>${esc(f.cod)}</b></div>
+    <div><span>Cód. real</span><b>${esc(f.real)}</b></div>
+  </div>
+
+  <div class="fh-cards">
+    <div class="fh-card c1"><span>Desconto do colaborador</span><b>${brl(f.tc)}</b><small>a descontar em folha</small></div>
+    <div class="fh-card c2"><span>Custo da empresa</span><b>${brl(f.te)}</b><small>subsídio no período</small></div>
+    <div class="fh-card c3"><span>Refeições utilizadas</span><b>${f.q}</b><small>${faltas} não utilizada(s) em ${uteis} dia(s) útil(eis)</small></div>
+  </div>
+
+  <h2 class="fh-h">Histórico de lançamentos</h2>
+  <table>
+    <thead><tr>
+      <th style="width:16%">Data</th><th style="width:16%">Dia</th>
+      <th style="width:30%">Situação</th><th style="width:19%">V. colab.</th><th style="width:19%">V. empresa</th>
+    </tr></thead>
+    <tbody>
+      ${f.linhas.map(l=>`<tr>
+        <td class="num">${dBR(l.d)}</td>
+        <td>${DIA_SEM[l.ds]}</td>
+        <td><span class="tag ${l.cls}">${l.st}</span></td>
+        <td class="num">${l.pC===null?'<span class="dim">—</span>':brl(l.pC)}</td>
+        <td class="num">${l.pE===null?'<span class="dim">—</span>':brl(l.pE)}</td>
+      </tr>`).join('')}
+    </tbody>
+    <tfoot><tr>
+      <td colspan="3">TOTAL — ${f.q} refeição(ões)</td>
+      <td class="num">${brl(f.tc)}</td><td class="num">${brl(f.te)}</td>
+    </tr></tfoot>
+  </table>
+
+  <div class="fh-sign">
+    <div><div class="fh-line">Ass. colaborador</div></div>
+    <div><div class="fh-line">Ass. responsável / RH</div></div>
+  </div>
+  <div class="fh-foot">Documento gerado pelo Controle de Refeição BR3 em ${dBR(hojeISO())}</div>
+</div>`;
+}
+
+document.getElementById('btnAcoes').onclick=function(e){ document.getElementById('menuAcoes').classList.toggle('show'); e.stopPropagation(); };
+window.onclick=function(){ document.getElementById('menuAcoes').classList.remove('show'); };
+</script>
+</body>
+</html>
